@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClipAI — Smart Video Clipper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --accent: #7c3aed;
+    --accent2: #a855f7;
+    --pink: #ec4899;
+    --teal: #14b8a6;
+    --text: #f1f0ff;
+    --muted: #8b89a0;
+    --danger: #f43f5e;
+    --success: #22c55e;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  /* Glow blobs */
+  .blob1, .blob2, .blob3 {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(100px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob1 { width: 500px; height: 500px; background: rgba(124,58,237,0.12); top: -150px; left: -100px; }
+  .blob2 { width: 400px; height: 400px; background: rgba(236,72,153,0.08); bottom: 100px; right: -80px; }
+  .blob3 { width: 300px; height: 300px; background: rgba(20,184,166,0.06); top: 40%; left: 50%; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 2.5rem;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .logo {
+    font-family: var(--font-head);
+    font-size: 1.4rem; font-weight: 800;
+    background: linear-gradient(135deg, #a78bfa, #ec4899);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+  }
+  nav .badge {
+    font-size: 0.65rem; font-weight: 600;
+    background: rgba(124,58,237,0.2);
+    color: #a78bfa;
+    border: 0.5px solid rgba(124,58,237,0.4);
+    padding: 2px 8px; border-radius: 999px;
+    margin-left: 8px; vertical-align: middle;
+    font-family: var(--font-body);
+    letter-spacing: 0.5px;
+  }
+  .nav-links { display: flex; gap: 2rem; align-items: center; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--accent); color: white;
+    border: none; padding: 0.5rem 1.25rem;
+    border-radius: 8px; font-size: 0.875rem;
+    cursor: pointer; font-family: var(--font-body);
+    font-weight: 500; transition: all 0.2s;
+  }
+  .nav-cta:hover { background: var(--accent2); transform: translateY(-1px); }
+
+  /* HERO */
+  .hero {
+    position: relative; z-index: 1;
+    text-align: center;
+    padding: 6rem 1.5rem 4rem;
+    max-width: 860px;
+    margin: 0 auto;
+  }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(124,58,237,0.12);
+    border: 0.5px solid rgba(124,58,237,0.3);
+    color: #c4b5fd; font-size: 0.8rem; font-weight: 500;
+    padding: 5px 14px; border-radius: 999px;
+    margin-bottom: 1.75rem;
+    animation: fadeSlide 0.6s ease both;
+  }
+  .dot-pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #22c55e;
+    animation: pulse 1.5s ease infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes fadeSlide {
+    from { opacity:0; transform: translateY(12px); }
+    to { opacity:1; transform: translateY(0); }
+  }
+
+  .hero h1 {
+    font-family: var(--font-head);
+    font-size: clamp(2.8rem, 6vw, 4.5rem);
+    font-weight: 800; line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 1.25rem;
+    animation: fadeSlide 0.6s 0.1s ease both;
+  }
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(135deg, #a78bfa 0%, #ec4899 50%, #f97316 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    font-size: 1.1rem; color: var(--muted); line-height: 1.7;
+    max-width: 560px; margin: 0 auto 2.5rem;
+    animation: fadeSlide 0.6s 0.2s ease both;
+  }
+
+  /* MAIN CARD */
+  .card-main {
+    position: relative; z-index: 1;
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 740px; margin: 0 auto 3rem;
+    animation: fadeSlide 0.6s 0.3s ease both;
+    box-shadow: 0 0 80px rgba(124,58,237,0.08), 0 1px 0 rgba(255,255,255,0.05) inset;
+  }
+
+  /* Platform Tabs */
+  .platform-tabs {
+    display: flex; gap: 8px; margin-bottom: 1.5rem;
+  }
+  .tab-btn {
+    flex: 1; padding: 0.65rem 1rem;
+    border-radius: 10px; border: 0.5px solid var(--border);
+    background: transparent;
+    color: var(--muted); font-family: var(--font-body);
+    font-size: 0.875rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .tab-btn.active {
+    background: rgba(124,58,237,0.15);
+    border-color: rgba(124,58,237,0.5);
+    color: #c4b5fd;
+  }
+  .tab-btn:hover:not(.active) { border-color: var(--border2); color: var(--text); }
+
+  /* URL Input */
+  .input-group {
+    display: flex; gap: 10px; margin-bottom: 1.25rem;
+  }
+  .url-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 10px; padding: 0.75rem 1rem;
+    color: var(--text); font-family: var(--font-body);
+    font-size: 0.9rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  .url-input::placeholder { color: var(--muted); }
+  .url-input:focus { border-color: rgba(124,58,237,0.5); }
+  .fetch-btn {
+    background: var(--accent); color: white;
+    border: none; border-radius: 10px;
+    padding: 0 1.5rem; font-family: var(--font-body);
+    font-size: 0.9rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .fetch-btn:hover { background: var(--accent2); }
+  .fetch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Settings row */
+  .settings-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+  .setting-block { display: flex; flex-direction: column; gap: 6px; }
+  .setting-label {
+    font-size: 0.78rem; color: var(--muted);
+    font-weight: 500; letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .setting-select {
+    background: var(--surface2); border: 0.5px solid var(--border2);
+    border-radius: 8px; padding: 0.55rem 0.75rem;
+    color: var(--text); font-family: var(--font-body);
+    font-size: 0.875rem; outline: none;
+    appearance: none; cursor: pointer;
+    transition: border-color 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b89a0' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+  }
+  .setting-select:focus { border-color: rgba(124,58,237,0.5); }
+
+  /* Time range */
+  .time-range { display: flex; gap: 8px; align-items: center; }
+  .time-input {
+    flex: 1;
+    background: var(--surface2); border: 0.5px solid var(--border2);
+    border-radius: 8px; padding: 0.55rem 0.75rem;
+    color: var(--text); font-family: var(--font-mono, monospace);
+    font-size: 0.875rem; outline: none; text-align: center;
+    transition: border-color 0.2s;
+  }
+  .time-input:focus { border-color: rgba(124,58,237,0.5); }
+  .time-sep { color: var(--muted); font-size: 0.9rem; }
+
+  /* AI Prompt */
+  .prompt-area {
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 10px; padding: 0.75rem 1rem;
+    color: var(--text); font-family: var(--font-body);
+    font-size: 0.9rem; outline: none; resize: none;
+    width: 100%; min-height: 80px; line-height: 1.5;
+    transition: border-color 0.2s;
+    margin-bottom: 1.25rem;
+  }
+  .prompt-area::placeholder { color: var(--muted); }
+  .prompt-area:focus { border-color: rgba(124,58,237,0.5); }
+
+  /* Options row */
+  .options-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+  .chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 0.5px solid var(--border);
+    border-radius: 8px; padding: 0.45rem 0.85rem;
+    font-size: 0.8rem; color: var(--muted);
+    cursor: pointer; transition: all 0.2s;
+    user-select: none;
+  }
+  .chip.on {
+    background: rgba(124,58,237,0.12);
+    border-color: rgba(124,58,237,0.4);
+    color: #c4b5fd;
+  }
+  .chip:hover:not(.on) { border-color: var(--border2); color: var(--text); }
+  .chip .chip-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #c4b5fd; display: none;
+  }
+  .chip.on .chip-dot { display: block; }
+
+  /* Generate button */
+  .generate-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #7c3aed, #ec4899);
+    border: none; border-radius: 12px;
+    padding: 0.9rem;
+    color: white; font-family: var(--font-head);
+    font-size: 1rem; font-weight: 700;
+    cursor: pointer; transition: all 0.25s;
+    letter-spacing: 0.2px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    position: relative; overflow: hidden;
+  }
+  .generate-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, #a855f7, #f97316);
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .generate-btn:hover::before { opacity: 1; }
+  .generate-btn:hover { transform: translateY(-1px); }
+  .generate-btn:active { transform: scale(0.98); }
+  .generate-btn span { position: relative; z-index: 1; }
+
+  /* Progress */
+  .progress-section {
+    display: none;
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 14px; padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .progress-section.show { display: block; }
+  .progress-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .progress-title { font-weight: 600; font-size: 0.9rem; }
+  .progress-pct { font-size: 0.875rem; color: var(--accent2); font-weight: 600; }
+  .progress-bar-wrap {
+    height: 6px; background: rgba(255,255,255,0.07);
+    border-radius: 999px; overflow: hidden; margin-bottom: 12px;
+  }
+  .progress-bar {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, #7c3aed, #ec4899);
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+  .progress-steps { display: flex; flex-direction: column; gap: 8px; }
+  .pstep {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.8rem; color: var(--muted);
+  }
+  .pstep.done { color: var(--text); }
+  .pstep-icon {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .pstep .pstep-icon { background: rgba(255,255,255,0.07); }
+  .pstep.done .pstep-icon { background: rgba(34,197,94,0.2); }
+  .pstep.active .pstep-icon {
+    background: rgba(124,58,237,0.25);
+    animation: spin-ring 1s linear infinite;
+  }
+  @keyframes spin-ring { to { transform: rotate(360deg); } }
+  .pstep.done .pstep-icon::after { content: '✓'; font-size: 9px; color: var(--success); }
+  .pstep.active .pstep-icon::after { content: '·'; font-size: 14px; color: var(--accent2); }
+
+  /* Results */
+  .results-section { display: none; }
+  .results-section.show { display: block; }
+  .results-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .results-title { font-family: var(--font-head); font-size: 1.05rem; font-weight: 700; }
+  .results-count {
+    font-size: 0.8rem; color: var(--muted);
+    background: var(--surface2); border: 0.5px solid var(--border);
+    padding: 3px 10px; border-radius: 999px;
+  }
+  .clip-grid { display: flex; flex-direction: column; gap: 12px; }
+
+  .clip-card {
+    background: var(--surface2); border: 0.5px solid var(--border);
+    border-radius: 12px; padding: 1rem 1.25rem;
+    display: flex; align-items: center; gap: 1rem;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+  }
+  .clip-card:hover { border-color: var(--border2); background: rgba(255,255,255,0.03); }
+
+  .clip-thumb {
+    width: 72px; height: 48px; border-radius: 8px;
+    flex-shrink: 0; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .clip-thumb-bg {
+    position: absolute; inset: 0; border-radius: 8px;
+  }
+  .clip-play {
+    position: relative; z-index: 1;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .clip-play svg { width: 10px; height: 10px; margin-left: 2px; fill: #0a0a0f; }
+
+  .clip-info { flex: 1; min-width: 0; }
+  .clip-name {
+    font-weight: 500; font-size: 0.875rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .clip-meta { display: flex; gap: 10px; align-items: center; }
+  .clip-time { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .clip-score {
+    font-size: 0.7rem; font-weight: 600;
+    padding: 2px 7px; border-radius: 999px;
+  }
+  .score-high { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .score-med { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  .clip-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .clip-act-btn {
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 0.5px solid var(--border); background: transparent;
+    color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; font-size: 13px;
+  }
+  .clip-act-btn:hover { border-color: var(--border2); color: var(--text); background: rgba(255,255,255,0.04); }
+  .clip-act-btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .clip-act-btn.primary:hover { background: var(--accent2); }
+
+  /* Features section */
+  .features {
+    position: relative; z-index: 1;
+    max-width: 900px; margin: 0 auto 5rem;
+    padding: 0 1.5rem;
+  }
+  .features-label {
+    text-align: center; font-size: 0.8rem;
+    color: var(--muted); letter-spacing: 2px;
+    text-transform: uppercase; font-weight: 500;
+    margin-bottom: 2.5rem;
+  }
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .feature-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 14px; padding: 1.5rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .feature-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+  .feature-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; margin-bottom: 1rem;
+  }
+  .feature-card h3 {
+    font-family: var(--font-head); font-size: 0.95rem;
+    font-weight: 700; margin-bottom: 0.5rem;
+  }
+  .feature-card p { font-size: 0.825rem; color: var(--muted); line-height: 1.6; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    background: var(--surface2); border: 0.5px solid var(--border2);
+    border-radius: 10px; padding: 0.75rem 1.25rem;
+    font-size: 0.875rem; color: var(--text);
+    display: none; align-items: center; gap: 8px;
+    z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .toast.show { display: flex; }
+  .toast-icon { font-size: 16px; }
+
+  /* Scroll fade */
+  .fade-in { opacity: 0; transform: translateY(20px); transition: all 0.6s ease; }
+  .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+  /* Footer */
+  footer {
+    position: relative; z-index: 1;
+    text-align: center; padding: 2rem;
+    color: var(--muted); font-size: 0.8rem;
+    border-top: 0.5px solid var(--border);
+  }
+  footer span { color: #a78bfa; }
+
+  @media (max-width: 600px) {
+    nav { padding: 1rem; }
+    .nav-links { display: none; }
+    .hero { padding: 4rem 1rem 2.5rem; }
+    .hero h1 { font-size: 2.4rem; letter-spacing: -1.5px; }
+    .settings-row { grid-template-columns: 1fr; }
+    .card-main { padding: 1.25rem; }
+    .options-row { gap: 6px; }
+    .clip-thumb { width: 56px; height: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="blob1"></div>
+<div class="blob2"></div>
+<div class="blob3"></div>
+
+<!-- NAV -->
+<nav>
+  <div>
+    <span class="logo">✂ ClipAI</span>
+    <span class="badge">BETA</span>
+  </div>
+  <div class="nav-links">
+    <a href="#">Fitur</a>
+    <a href="#">Harga</a>
+    <a href="#">API</a>
+    <button class="nav-cta">Mulai Gratis</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-tag">
+    <div class="dot-pulse"></div>
+    AI Video Clipper — YouTube & TikTok
+  </div>
+  <h1>Potong video <em>secara otomatis</em> dengan kecerdasan AI</h1>
+  <p>Tempel link YouTube atau TikTok, beri instruksi AI-mu, dan dapatkan clip-clip terbaik dalam hitungan detik.</p>
+</section>
+
+<!-- MAIN CARD -->
+<div class="card-main">
+  <!-- Platform Tabs -->
+  <div class="platform-tabs">
+    <button class="tab-btn active" id="tab-yt" onclick="switchTab('yt')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.5a3 3 0 0 0-2.1-2.1C19.6 4 12 4 12 4s-7.6 0-9.4.4A3 3 0 0 0 .5 6.5C.1 8.3 0 12 0 12s.1 3.7.5 5.5a3 3 0 0 0 2.1 2.1C4.4 20 12 20 12 20s7.6 0 9.4-.4a3 3 0 0 0 2.1-2.1c.4-1.8.5-5.5.5-5.5s-.1-3.7-.5-5.5zM9.8 15.5V8.5L16 12l-6.2 3.5z"/></svg>
+      YouTube
+    </button>
+    <button class="tab-btn" id="tab-tt" onclick="switchTab('tt')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.19 8.19 0 0 0 4.78 1.52V6.75a4.85 4.85 0 0 1-1-.06z"/></svg>
+      TikTok
+    </button>
+  </div>
+
+  <!-- URL Input -->
+  <div class="input-group">
+    <input class="url-input" type="url" id="urlInput"
+      placeholder="https://www.youtube.com/watch?v=..."
+      oninput="onUrlChange()" />
+    <button class="fetch-btn" id="fetchBtn" onclick="fetchVideo()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      Analisis
+    </button>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings-row">
+    <div class="setting-block">
+      <label class="setting-label">Format Output</label>
+      <select class="setting-select" id="formatSel">
+        <option>MP4 - H.264 (Universal)</option>
+        <option>MP4 - H.265 (Kecil)</option>
+        <option>WebM - VP9</option>
+        <option>GIF Animasi</option>
+      </select>
+    </div>
+    <div class="setting-block">
+      <label class="setting-label">Resolusi</label>
+      <select class="setting-select" id="resSel">
+        <option>1080p Full HD</option>
+        <option>720p HD</option>
+        <option>480p SD</option>
+        <option>360p Rendah</option>
+      </select>
+    </div>
+    <div class="setting-block">
+      <label class="setting-label">Durasi Clip</label>
+      <select class="setting-select" id="durSel">
+        <option>15 – 30 detik</option>
+        <option>30 – 60 detik</option>
+        <option>1 – 3 menit</option>
+        <option>Manual (custom)</option>
+      </select>
+    </div>
+    <div class="setting-block">
+      <label class="setting-label">Rentang Waktu</label>
+      <div class="time-range">
+        <input class="time-input" type="text" id="startTime" placeholder="0:00" maxlength="7"/>
+        <span class="time-sep">→</span>
+        <input class="time-input" type="text" id="endTime" placeholder="Akhir" maxlength="7"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Prompt -->
+  <textarea class="prompt-area" id="aiPrompt"
+    placeholder="Contoh: Ambil momen paling lucu dan menarik dari video ini. Fokus pada bagian yang viral dan cocok untuk konten TikTok singkat."></textarea>
+
+  <!-- Option Chips -->
+  <div class="options-row">
+    <div class="chip on" id="chip-sub" onclick="toggleChip(this)">
+      <span class="chip-dot"></span>
+      Tambah Subtitle
+    </div>
+    <div class="chip on" id="chip-smart" onclick="toggleChip(this)">
+      <span class="chip-dot"></span>
+      Smart Trim
+    </div>
+    <div class="chip" id="chip-mute" onclick="toggleChip(this)">
+      <span class="chip-dot"></span>
+      Hapus Musik BG
+    </div>
+    <div class="chip" id="chip-face" onclick="toggleChip(this)">
+      <span class="chip-dot"></span>
+      Face Tracking
+    </div>
+    <div class="chip on" id="chip-hook" onclick="toggleChip(this)">
+      <span class="chip-dot"></span>
+      Deteksi Hook
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section" id="progressSec">
+    <div class="progress-header">
+      <span class="progress-title">🔧 Memproses video...</span>
+      <span class="progress-pct" id="pctLabel">0%</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="progress-steps" id="progressSteps">
+      <div class="pstep" id="ps1"><div class="pstep-icon"></div>Mengambil metadata video</div>
+      <div class="pstep" id="ps2"><div class="pstep-icon"></div>Mengunduh & memproses video</div>
+      <div class="pstep" id="ps3"><div class="pstep-icon"></div>AI menganalisis konten</div>
+      <div class="pstep" id="ps4"><div class="pstep-icon"></div>Mendeteksi highlight & momen viral</div>
+      <div class="pstep" id="ps5"><div class="pstep-icon"></div>Membuat clip & menambah subtitle</div>
+      <div class="pstep" id="ps6"><div class="pstep-icon"></div>Finalisasi output</div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-section" id="resultsSec">
+    <div class="results-header">
+      <span class="results-title">✨ Clip Siap</span>
+      <span class="results-count" id="clipCount">0 clips</span>
+    </div>
+    <div class="clip-grid" id="clipGrid"></div>
+    <div style="margin-top: 1rem; display: flex; gap: 8px;">
+      <button onclick="downloadAll()" style="flex:1; padding: 0.65rem; background: var(--accent); color:white; border: none; border-radius: 10px; font-family: var(--font-body); font-size: 0.875rem; font-weight: 500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; transition: background 0.2s;">
+        ⬇ Download Semua
+      </button>
+      <button onclick="resetAll()" style="padding: 0.65rem 1rem; background: transparent; color: var(--muted); border: 0.5px solid var(--border); border-radius: 10px; font-family: var(--font-body); font-size: 0.875rem; cursor:pointer; transition: all 0.2s;">
+        ↺ Reset
+      </button>
+    </div>
+  </div>
+
+  <!-- Generate Button -->
+  <button class="generate-btn" id="generateBtn" onclick="startGenerate()">
+    <span>✂ Buat Clip dengan AI</span>
+  </button>
+</div>
+
+<!-- FEATURES -->
+<section class="features fade-in">
+  <p class="features-label">Kenapa ClipAI?</p>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(124,58,237,0.15)">🧠</div>
+      <h3>AI Content Analysis</h3>
+      <p>AI menganalisis transkrip, ekspresi, dan engagement untuk menemukan momen paling impactful.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(236,72,153,0.12)">⚡</div>
+      <h3>Proses Super Cepat</h3>
+      <p>Dari link ke clip dalam waktu kurang dari 2 menit menggunakan server GPU terdistribusi.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(20,184,166,0.12)">📝</div>
+      <h3>Auto Subtitle</h3>
+      <p>Subtitle otomatis dengan deteksi bahasa, termasuk Bahasa Indonesia dan 50+ bahasa lainnya.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(249,115,22,0.12)">🎯</div>
+      <h3>Viral Hook Detection</h3>
+      <p>Deteksi otomatis hook dan momen yang berpotensi viral berdasarkan pola konten sukses.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(34,197,94,0.12)">📱</div>
+      <h3>Format Multi-Platform</h3>
+      <p>Export ke format TikTok (9:16), YouTube Shorts, Instagram Reels, atau format custom.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon" style="background:rgba(251,191,36,0.12)">🔒</div>
+      <h3>Aman & Privat</h3>
+      <p>File diproses di server terenkripsi dan dihapus otomatis setelah 24 jam.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Dibuat dengan ❤ di Indonesia &nbsp;·&nbsp; <span>ClipAI</span> &nbsp;·&nbsp; 2024 &nbsp;·&nbsp; Semua hak dilindungi
+</footer>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toastIcon">✓</span>
+  <span id="toastMsg">Selesai!</span>
+</div>
+
+<script>
+let currentTab = 'yt';
+let isProcessing = false;
+
+function switchTab(t) {
+  currentTab = t;
+  document.getElementById('tab-yt').classList.toggle('active', t==='yt');
+  document.getElementById('tab-tt').classList.toggle('active', t==='tt');
+  const inp = document.getElementById('urlInput');
+  inp.placeholder = t === 'yt'
+    ? 'https://www.youtube.com/watch?v=...'
+    : 'https://www.tiktok.com/@user/video/...';
+  inp.value = '';
+}
+
+function onUrlChange() {
+  const v = document.getElementById('urlInput').value;
+  document.getElementById('fetchBtn').disabled = !v.trim();
+}
+
+function toggleChip(el) {
+  el.classList.toggle('on');
+}
+
+function showToast(msg, icon='✓', dur=2500) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').textContent = icon;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function fetchVideo() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  showToast('Mengambil info video...', '🔍');
+  setTimeout(() => {
+    showToast('Video ditemukan! Siap diproses.', '✅');
+  }, 1200);
+}
+
+const clipData = [
+  { name: 'Hook Pembuka — Momen Paling Menarik', start: '0:04', end: '0:31', score: 98, color: '#7c3aed' },
+  { name: 'Bagian Klimaks & Reaksi Viral', start: '2:14', end: '2:52', score: 94, color: '#ec4899' },
+  { name: 'Kutipan Motivasi Terbaik', start: '5:01', end: '5:28', score: 87, color: '#14b8a6' },
+  { name: 'Momen Lucu & Relatable', start: '8:43', end: '9:05', score: 82, color: '#f97316' },
+];
+
+function startGenerate() {
+  if (isProcessing) return;
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { showToast('Masukkan URL video terlebih dahulu!', '⚠️'); return; }
+
+  isProcessing = true;
+  document.getElementById('generateBtn').style.opacity = '0.6';
+  document.getElementById('generateBtn').style.pointerEvents = 'none';
+  document.getElementById('resultsSec').classList.remove('show');
+  document.getElementById('progressSec').classList.add('show');
+
+  const steps = [
+    { id: 'ps1', pct: 15, delay: 600 },
+    { id: 'ps2', pct: 35, delay: 1800 },
+    { id: 'ps3', pct: 55, delay: 3400 },
+    { id: 'ps4', pct: 72, delay: 5000 },
+    { id: 'ps5', pct: 88, delay: 6500 },
+    { id: 'ps6', pct: 100, delay: 8000 },
+  ];
+
+  steps.forEach((s, i) => {
+    setTimeout(() => {
+      if (i > 0) document.getElementById(steps[i-1].id).className = 'pstep done';
+      document.getElementById(s.id).className = 'pstep active';
+      document.getElementById('progressBar').style.width = s.pct + '%';
+      document.getElementById('pctLabel').textContent = s.pct + '%';
+      if (i === steps.length - 1) {
+        setTimeout(() => {
+          document.getElementById(s.id).className = 'pstep done';
+          finishGenerate();
+        }, 800);
+      }
+    }, s.delay);
+  });
+}
+
+function finishGenerate() {
+  document.getElementById('progressSec').classList.remove('show');
+  document.getElementById('generateBtn').style.opacity = '1';
+  document.getElementById('generateBtn').style.pointerEvents = 'auto';
+  isProcessing = false;
+
+  const grid = document.getElementById('clipGrid');
+  grid.innerHTML = '';
+  document.getElementById('clipCount').textContent = clipData.length + ' clips';
+
+  clipData.forEach((c, i) => {
+    const dur = calcDur(c.start, c.end);
+    const scoreClass = c.score >= 90 ? 'score-high' : 'score-med';
+    const card = document.createElement('div');
+    card.className = 'clip-card';
+    card.innerHTML = `
+      <div class="clip-thumb">
+        <div class="clip-thumb-bg" style="background: linear-gradient(135deg, ${c.color}33, ${c.color}66)"></div>
+        <div class="clip-play">
+          <svg viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9"/></svg>
+        </div>
+      </div>
+      <div class="clip-info">
+        <div class="clip-name">Clip ${i+1}: ${c.name}</div>
+        <div class="clip-meta">
+          <span class="clip-time">⏱ ${c.start} – ${c.end} &nbsp;(${dur}s)</span>
+          <span class="clip-score ${scoreClass}">⭐ ${c.score}%</span>
+        </div>
+      </div>
+      <div class="clip-actions">
+        <button class="clip-act-btn" title="Preview" onclick="event.stopPropagation(); showToast('Preview clip ${i+1}...', '▶')">▶</button>
+        <button class="clip-act-btn primary" title="Download" onclick="event.stopPropagation(); downloadClip(${i+1})">⬇</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  document.getElementById('resultsSec').classList.add('show');
+  showToast(`${clipData.length} clip berhasil dibuat!`, '✂', 3000);
+  document.getElementById('resultsSec').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function calcDur(s, e) {
+  const toSec = str => { const [m,sec] = str.split(':').map(Number); return m*60+sec; };
+  return toSec(e) - toSec(s);
+}
+
+function downloadClip(n) {
+  showToast(`Mengunduh Clip ${n}...`, '⬇', 2000);
+}
+
+function downloadAll() {
+  showToast('Mengunduh semua clip dalam ZIP...', '📦', 2500);
+}
+
+function resetAll() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('resultsSec').classList.remove('show');
+  document.getElementById('progressSec').classList.remove('show');
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('pctLabel').textContent = '0%';
+  ['ps1','ps2','ps3','ps4','ps5','ps6'].forEach(id => {
+    document.getElementById(id).className = 'pstep';
+  });
+}
+
+// Intersection observer for fade-in
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+onUrlChange();
+</script>
+</body>
+</html>
